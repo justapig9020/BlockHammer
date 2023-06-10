@@ -1,5 +1,6 @@
 #include "Cache.h"
 
+#define DEBUG_CACHE
 #ifndef DEBUG_CACHE
 #define debug(...)
 #else
@@ -450,6 +451,7 @@ void Cache::callback(Request& req) {
       });
 
   if (it != mshr_entries.end()) {
+    debug("Dequeuing mshr");
     it->second->lock = false;
     mshr_entries.erase(it);
   }

@@ -1289,6 +1289,7 @@ public:
 
                 if (req.callback)
                     req.callback(req);
+                cout << "[PENDGIN] Pending pop front" << endl;
                 pending.pop_front();
             }
         }

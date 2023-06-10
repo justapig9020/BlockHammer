@@ -2,6 +2,17 @@
 #include "StridePrefetcher.h"
 #include <cassert>
 
+#define DEBUG_PROC
+#ifndef DEBUG_PROC
+#define debug(...)
+#else
+#define debug(...) do { \
+          printf("\033[36m[DEBUG] %s ", __FUNCTION__); \
+          printf(__VA_ARGS__); \
+          printf("\033[0m\n"); \
+      } while (0)
+#endif
+
 using namespace std;
 using namespace ramulator;
 
@@ -110,6 +121,7 @@ void Processor::tick() {
 
 void Processor::receive(Request& req) {
   if (!no_shared_cache) {
+    debug("llc call back");
     llc.callback(req);
   } else if (!cores[0]->no_core_caches) {
     // Assume all cores have caches or don't have caches
