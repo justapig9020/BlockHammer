@@ -65,7 +65,7 @@ do
   echo "Running $mechcmd";
   eval $mechcmd;
   echo "Updating the results file";
-  python collect_results.py $OUTDIR;
+  python2 collect_results.py $OUTDIR;
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
 done
 
@@ -125,7 +125,7 @@ do
     # eval $mechcmd;
   fi
   echo "Updating the results file";
-  python collect_results.py $OUTDIR;
+  python2 collect_results.py $OUTDIR;
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
 done
 

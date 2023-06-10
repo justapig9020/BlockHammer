@@ -61,10 +61,8 @@ class StatParser(object):
 
                     if name in self.stats_dict_list[stats_index]:
                         if self.verbose:
-                            print("#  Repeating stat name: " + name, end=' ')
-                            print(" was " + str(self.get_value(name)), end=' ')
-                            print(" is " + str(value), end=' ')
-                            print(" means " + desc)
+                            msg = "#  Repeating stat name: " + name + " was " + str(self.get_value(name)) + " is " + str(value) + " means " + desc
+                            print(msg)
                     self.stats_dict_list[stats_index][name] = (value, desc.strip())
 
     def get_value(self, name):
