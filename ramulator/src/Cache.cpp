@@ -206,6 +206,8 @@ bool Cache::send(Request req) {
       //  assert(false); 
       //}
     }
+    if (mshr_limit < 1)
+      mshr_limit = 1;
     debug("MSHR entries: %d", mshr_entries.size());
     debug("MSHR limit: %d", mshr_limit);
     if (mshr_entries.size() >= mshr_limit) {
