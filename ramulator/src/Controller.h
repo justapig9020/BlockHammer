@@ -1289,7 +1289,7 @@ public:
 
                 if (req.callback)
                     req.callback(req);
-                cout << "[PENDGIN] Pending pop front" << endl;
+                cout << "[PENDING] Pending dequeue" << endl;
                 pending.pop_front();
             }
         }
@@ -1497,6 +1497,7 @@ public:
         // set a future completion time for read requests
         if (req->type == Request::Type::READ || req->type == Request::Type::PREFETCH) {
             req->depart = clk + channel->spec->read_latency;
+            cout << "[PENDING] pending enqueue" << endl;
             pending.push_back(*req);
         }
 

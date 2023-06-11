@@ -475,11 +475,9 @@ public:
     void update_addr_vec(Request& req) {
         req.addr_vec.resize(addr_bits.size());
         long addr = req.addr;
-        debug("Byte Address: 0x%x", addr);
         // Each transaction size is 2^tx_bits, so first clear the lowest tx_bits bits
         // cout << "Complete address: 0x" << hex << addr;
         clear_lower_bits(addr, tx_bits);
-	    debug("Column Address: 0x%x", addr);
         // cout << ", Address after clearing the lower " << tx_bits << " bits: 0x" << hex << addr << endl;
         if (use_mapping_file){
             apply_mapping(addr, req.addr_vec);
@@ -503,12 +501,9 @@ public:
                         req.addr_vec[int(T::Level::Column)] = slice_lower_bits(addr, 2); // MOP4CL
                         for (int lvl = 0 ; lvl < int(T::Level::Row) ; lvl++){
                             req.addr_vec[lvl] = slice_lower_bits(addr, addr_bits[lvl]);
-                            debug("lvl %d: addr:%x", lvl, req.addr_vec[lvl]);
                         }
                         req.addr_vec[int(T::Level::Column)] += slice_lower_bits(addr, addr_bits[int(T::Level::Column)]-2) << 2;
                         req.addr_vec[int(T::Level::Row)] = (int) addr;
-                        debug("col addr:%x", req.addr_vec[int(T::Level::Column)]);
-                        debug("row addr:%x", req.addr_vec[int(T::Level::Row)]);
                         // Co 1:0 = 1:0
                         // Bg 1:0 = 3:2 12:11
                         // Ba 1:0 = 5:4 14:13
@@ -523,7 +518,6 @@ public:
                             req.addr_vec[lvl] = req.addr_vec[lvl] xor mask;
                         row_xor_index += addr_bits[lvl];
                             }
-                            debug("lvl %d: addr:%x", lvl, req.addr_vec[lvl]);
                         }
                                 
                         break;
@@ -535,8 +529,6 @@ public:
                         }
                         req.addr_vec[int(T::Level::Column)] = slice_lower_bits(addr, addr_bits[int(T::Level::Column)]);
                         req.addr_vec[int(T::Level::Row)] = (int) addr;
-                        debug("col addr:%x", req.addr_vec[int(T::Level::Column)]);
-                        debug("row addr:%x", req.addr_vec[int(T::Level::Row)]);
                         // Bg 1:0 = 1:0 12:11
                         // Ba 1:0 = 3:2 14:13
                         // Co 6:0 = 10:4
@@ -550,7 +542,6 @@ public:
                             req.addr_vec[lvl] = req.addr_vec[lvl] xor mask;
                         row_xor_index += addr_bits[lvl];
                             }
-                            debug("lvl %d: addr:%x", lvl, req.addr_vec[lvl]);
                         }
                                 
                         break;
@@ -833,9 +824,7 @@ private:
     }
     void clear_lower_bits(long& addr, int bits)
     {
-	debug("Clearing lower %d bits of %ld", bits, addr);
         addr >>= bits;
-	debug("Result is %ld", addr);
     }
     long lrand(void) {
         if(sizeof(int) < sizeof(long)) {

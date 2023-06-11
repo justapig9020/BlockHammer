@@ -322,7 +322,10 @@ void Core::tick()
         Request req(req_addr, req_type, callback, id);
         req.payload = payload;
         // cout << clk << " ---- " << "CPU Ticks, checkpoint 4, request type: " << (int)req_type << endl;
-        if (!send(req)) return;
+        if (!send(req)) {
+          debug("Send request failed");
+          return;
+        }
 
         window.insert(false, req_addr);
         cpu_inst++;

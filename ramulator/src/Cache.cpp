@@ -23,8 +23,6 @@ Cache::Cache(int size, int assoc, int block_size,
     block_size(block_size), mshr_entry_num(mshr_entry_num),
        throttling_coeffs_ptr(throttling_coeffs_ptr)	{
 
-  debug("level %d size %d assoc %d block_size %d\n",
-      int(level), size, assoc, block_size);
 
   if (level == Level::L1) {
     level_string = "L1";
@@ -51,14 +49,8 @@ Cache::Cache(int size, int assoc, int block_size,
 
   prefetcher = nullptr;
 
-  debug("index_offset %d", index_offset);
-  debug("index_mask 0x%x", index_mask);
-  debug("tag_offset %d", tag_offset);
 
   //if (is_last_level){
-    debug("throttling_coeffs");
-    debug("[0]: %f", throttling_coeffs_ptr->at(0));
-    debug("[1]: %f", throttling_coeffs_ptr->at(1));
   //}
   // regStats
   cache_read_miss.name(level_string + string("_cache_read_miss"))
@@ -130,9 +122,6 @@ Cache::Cache(int size, int assoc, int block_size,
 }
 
 bool Cache::send(Request req) {
-  debug("level %d req.addr %lx req.type %d, index %d, tag %ld",
-      int(level), req.addr, int(req.type), get_index(req.addr),
-      get_tag(req.addr));
 
   cache_total_access++;
   if (req.type == Request::Type::WRITE) {
@@ -162,9 +151,6 @@ bool Cache::send(Request req) {
     cachesys->hit_list.push_back(
         make_pair(cachesys->clk + latency[int(level)], req));
 
-    debug("hit, update timestamp %ld", cachesys->clk);
-    debug("hit finish time %ld",
-        cachesys->clk + latency[int(level)]);
 
     if(prefetcher)
         prefetcher->hit(req.addr, cachesys->clk);
@@ -172,7 +158,6 @@ bool Cache::send(Request req) {
     return true;
 
   } else {
-    debug("miss @level %d", int(level));
     cache_total_miss++;
     if (req.type == Request::Type::WRITE) {
       cache_write_miss++;
@@ -229,11 +214,13 @@ bool Cache::send(Request req) {
       //  assert(false); 
       //}
     }
+    debug("MSHR entries: %d", mshr_entries.size());
+    debug("MSHR limit: %d", mshr_limit);
     if (mshr_entries.size() >= mshr_limit) {
+      debug("MSHR unavailable");
       // When no MSHR entries available, the miss request
       // is stalling.
       cache_mshr_unavailable++;
-      debug("no mshr entry available");
       return false;
     }
 
@@ -251,6 +238,7 @@ bool Cache::send(Request req) {
     newline->dirty = dirty;
 
     // Add to MSHR entries
+    debug("MSHR enqueue");
     mshr_entries.push_back(make_pair(req.addr, newline));
 
     // Send the request to next level;
@@ -306,7 +294,6 @@ std::pair<long, bool> Cache::invalidate(long addr) {
   // the buffer.
   if (line != lines.end()) {
     assert(!line->lock);
-    debug("invalidate %lx @ level %d", addr, int(level));
     lines.erase(line);
   } else {
     // If it's not in current level, then no need to go up.
@@ -334,7 +321,6 @@ std::pair<long, bool> Cache::invalidate(long addr) {
 
 void Cache::evict(std::list<Line>* lines,
     std::list<Line>::iterator victim) {
-  debug("level %d miss evict victim %lx", int(level), victim->addr);
   cache_eviction++;
 
   long addr = victim->addr;
@@ -351,9 +337,6 @@ void Cache::evict(std::list<Line>* lines,
     }
   }
 
-  debug("invalidate delay: %ld, dirty: %s", invalidate_time,
-      dirty ? "true" : "false");
-
   if (!is_last_level) {
     // not LLC eviction
     assert(lower_cache != nullptr);
@@ -365,11 +348,6 @@ void Cache::evict(std::list<Line>* lines,
       cachesys->wait_list.push_back(make_pair(
           cachesys->clk + invalidate_time + latency[int(level)],
           write_req));
-
-      debug("inject one write request to memory system "
-          "addr %lx, invalidate time %ld, issue time %ld",
-          write_req.addr, invalidate_time,
-          cachesys->clk + invalidate_time + latency[int(level)]);
     }
   }
 
@@ -443,7 +421,6 @@ bool Cache::need_eviction(const std::list<Line>& lines, long addr, bool bypass) 
 }
 
 void Cache::callback(Request& req) {
-  debug("level %d", int(level));
 
   auto it = find_if(mshr_entries.begin(), mshr_entries.end(),
       [&req, this](std::pair<long, std::list<Line>::iterator> mshr_entry) {
@@ -451,7 +428,7 @@ void Cache::callback(Request& req) {
       });
 
   if (it != mshr_entries.end()) {
-    debug("Dequeuing mshr");
+    debug("MSHR dequeue");
     it->second->lock = false;
     mshr_entries.erase(it);
   }
@@ -465,8 +442,6 @@ void Cache::callback(Request& req) {
 }
 
 void CacheSystem::tick() {
-  debug("clk %ld", clk);
-
   ++clk;
 
   // Sends ready waiting request to memory
@@ -487,8 +462,6 @@ void CacheSystem::tick() {
   while (it != hit_list.end()) {
     if (clk >= it->first) {
       it->second.callback(it->second);
-
-      debug("finish hit: addr %lx", (it->second).addr);
 
       it = hit_list.erase(it);
     } else {
