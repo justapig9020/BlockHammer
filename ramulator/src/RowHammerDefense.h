@@ -15,6 +15,9 @@
 #include "Config.h"
 #include "BloomFilter.h"
 
+#define DEBUG
+#include "debug.h"
+
 
 #define NUM_CORES 32 // Bad coding. Fix this in the future.
 
@@ -1509,10 +1512,14 @@ namespace ramulator
               }
             }
 
+            debug("Check bloom filter refresh");
+            debug("passive_count %d", passive_count);
+            debug("active bloom filter %d", active_bloom_filter);
+            debug("start time %d", bf_start_time[active_bloom_filter]);
+            debug("nCBF %d", this->nREFW / this->n_bf_window);
             if ((passive_count > this->blockhammer_nbf / 2) ||
                 (clk - bf_start_time[active_bloom_filter] > this->nREFW/this->n_bf_window))
-            {
-              // switch filters
+            { // switch filters
               // cout << "  [BlockHammer] Switching the active filter." << endl;
               append_hammer_probs_file();
               bf[active_bloom_filter].clear();
@@ -1521,6 +1528,7 @@ namespace ramulator
                 hammer_cnts[active_bloom_filter][i] = 0;
               }
               active_bloom_filter = 1 - active_bloom_filter;
+              debug("bloom filter refreshed");
             }
           break;
         }

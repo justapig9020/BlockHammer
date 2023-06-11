@@ -2,16 +2,8 @@
 #include "StridePrefetcher.h"
 #include <cassert>
 
-#define DEBUG_PROC
-#ifndef DEBUG_PROC
-#define debug(...)
-#else
-#define debug(...) do { \
-          printf("\033[36m[DEBUG] %s ", __FUNCTION__); \
-          printf(__VA_ARGS__); \
-          printf("\033[0m\n"); \
-      } while (0)
-#endif
+// #define DEBUG
+#include "debug.h"
 
 using namespace std;
 using namespace ramulator;
