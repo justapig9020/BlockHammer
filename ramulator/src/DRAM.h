@@ -932,6 +932,9 @@ namespace ramulator
     {
         if (rhdef)
             rhdef->tick(clk);
+        else
+            for (auto child : children)
+                child->tick(clk);
     }
 
 } /* namespace ramulator */
