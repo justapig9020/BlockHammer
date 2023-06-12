@@ -23,6 +23,9 @@
 
 #include "CROWTable.h"
 
+// #define DEBUG
+#include "debug.h"
+
 // #define COLLECT_QSTATE
 
 using namespace std;
@@ -1152,6 +1155,8 @@ namespace ramulator
         void tick()
         {
             clk++;
+            debug("Control Tick");
+            channel->tick(clk);
             {
                 int instant_queue_length = readq.size() + writeq.size() + pending.size();
                 req_queue_length_sum += instant_queue_length;
@@ -1469,7 +1474,6 @@ namespace ramulator
 
             // remove request from queue
             queue->q.erase(req);
-            channel->tick(clk);
         }
 
         // CROW
