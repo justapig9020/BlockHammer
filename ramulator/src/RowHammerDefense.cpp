@@ -1,7 +1,7 @@
-#include "RowHammerDefense.h"
-
 #define DEBUG
 #include "debug.h"
+
+#include "RowHammerDefense.h"
 
 #define NUM_CORES 32 // Bad coding. Fix this in the future.
 
@@ -292,6 +292,8 @@ namespace ramulator
     void RowhammerDefense::tick(long clk)
     {
         this->clk = clk;
+        if (this->method != ROWHAMMER_DEFENSE::BLOCKHAMMER)
+          return;
         if (clk - bf_start_time[active_bloom_filter] > this->nREFW / this->n_bf_window)
         { // switch filters
             debug("switching bloom filter in tick");
