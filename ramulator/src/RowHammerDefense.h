@@ -579,7 +579,6 @@ namespace ramulator
     void tick(long clk){ this->clk = clk; }
 
     void finish(long clk){
-      // this->dump_blocked_rows();
   #ifdef COLLECT_ROWSTATES
       this->dump_activation_intervals();
       this->dump_state_length();
@@ -589,7 +588,6 @@ namespace ramulator
       this->dump_rhli_hist();
   #endif
       // Cleaning up the last activates
-      // printf("-----------\nReseting.\n"); fflush(stdout);
       this->last_activates.erase(
         this->last_activates.begin(), this->last_activates.end()
       );
@@ -617,7 +615,6 @@ namespace ramulator
     }
 
     void init_stats(){
-      // printf("\n\nFUNCTION CALL: init_stats\n");
       // Reset stats
       #ifdef COLLECT_ROWSTATES
       this->glob_act_cnt = 0;
@@ -633,12 +630,6 @@ namespace ramulator
       this->n_bf_window     = this->n_act_max / this->blockhammer_nbf; //Num of tCBF windows in a tREFW window
       this->rowhammer_threshold_tcbf = this->rowhammer_threshold_trefw / this->n_bf_window; //n_rh_bf
       this->throttle_threshold = configs.get_float("blockhammer_tth");
-      // cout << "blockhammer_nth :  " << this->blockhammer_nth << endl;
-      // cout << "blockhammer_nbf :  " << this->blockhammer_nbf << endl;
-      // cout << "bf_size         :  " << this->bf_size         << endl;
-      // cout << "n_bf_window     :  " << this->n_bf_window     << endl;
-      // cout << "rowhammer_threshold_trefw: " << this->rowhammer_threshold_trefw << endl;
-
 
       this->method = ROWHAMMER_DEFENSE::NONE;
 
@@ -821,7 +812,6 @@ namespace ramulator
                       + "_phase" + to_string(this->phase_number)
                       + "_nth_distr.csv";
       #endif
-      // cout << "Initializing stats..." << endl;
       this->num_blocked_acts[this->phase_number] = 0;
 
       this->num_rows[this->phase_number] = 0;
@@ -869,11 +859,9 @@ namespace ramulator
       this->nth_common_case[this->phase_number] = 0;
       this->nbf_common_case[this->phase_number] = 0;
       #endif
-      // cout << "Finished stats initialization." << endl;
     }
 
     void reload_options(){
-      // printf("\n\nFUNCTION CALL: reload_options\n");
       // Dump Warmup of current phase, reset stats and increment phase number.
       finish(0);
       this->phase_number ++;
@@ -884,9 +872,6 @@ namespace ramulator
       ofstream outfile;
       outfile.open(hammer_probs_file, ios::out | ios::trunc );
       outfile << "clk,core0,core1,core2,core3,core4,core5,core6,core7" << endl;
-      // for ( const auto &entry : this->blocked_rows ) {
-      //  outfile << entry.first << "," << entry.second.first << "," << entry.second.second << endl;
-      //}
       outfile.close();
     }
 
@@ -919,7 +904,6 @@ namespace ramulator
       for (int i = 0 ; i < num_cores; i++){
         float hammer_prob = (hammer_cnts[active_bloom_filter][i] * 1.0 / (rowhammer_threshold_tcbf - blockhammer_nth));
         hammer_probs[i] = (hammer_prob + hammer_probs[i] * num_tcbfs) / (num_tcbfs + 1);  
-        // cout << "[" << clk << "] " << this->comp_name << " Core ID: " << i << " Blacklisted ACT cnt: " << dec << hammer_cnts[active_bloom_filter][i]  << " RHLI: " << dec << hammer_prob << " RHLIavg: " << dec << hammer_probs[i] << endl;
         hammer_cnts[active_bloom_filter][i] = 0;
         outfile << "," << hammer_prob;
       }
@@ -1289,15 +1273,13 @@ namespace ramulator
     // If the activation is ok to issue, the function returns -1, so that the current clock will be greater than it. 
     long is_rowhammer_safe(int row_id, long clk, bool is_real_hammer, int coreid)
     {
-      // printf("\n\nFUNCTION CALL: is_rowhammer_safe %d, %ld\n", row_id, clk);
       this->clk = clk;
       switch(this->method){
         case ROWHAMMER_DEFENSE::BLOCKHAMMER:
           {
-            // cout << "Asking BlockHammer @ " << this->comp_name << " if activating row " << row_id << " @ clk " << clk << " is safe...";
-              
             if (clk - bf_start_time[active_bloom_filter] > this->nREFW / this->n_bf_window)
-            { // tCBF has passed; the active filter should change.
+            {
+              // tCBF has passed; the active filter should change.
               bf[active_bloom_filter].clear();
               bf_start_time[active_bloom_filter] = clk;
               append_hammer_probs_file();
@@ -1308,9 +1290,6 @@ namespace ramulator
             if (bf_response && this->blockhammer_dryrun == 0) // the row is blacklisted
             {
               long blocked_until = this->does_blockhammer_approve(row_id, clk, is_real_hammer);
-              // cout << "  the row is blacklisted and should be blocked until " << blocked_until;
-              // if (clk > blocked_until) cout << " Safe!" << endl;
-              // else cout << " NOT Safe!" << endl;
               return blocked_until;
             }
             else
@@ -1321,8 +1300,6 @@ namespace ramulator
               else
                 this->nonblocked_rows[row_id].first ++;
               #endif
-              // cout << "Asking BlockHammer @ " << this->comp_name << " if activating row " << row_id << " @ clk " << clk << " is safe...";
-              // cout << "  Safe!" << endl;
               return -1;
             }
           }
@@ -1331,51 +1308,26 @@ namespace ramulator
       }
     }
 
-    void debug_print(string str){
-      printf("    Recent activates:\n    -------------\n");
-      for ( auto entry : this->last_activates){
-        long time_delta = clk - entry.timestamp;
-        printf("    Row %d @ T-%ld, ", entry.row_id, time_delta);
-      }
-      printf("\n    -------------\n");
-    }
-
     long does_blockhammer_approve(int row_id, long clk, bool is_real_hammer){
-      // cout << "\n  FUNCTION CALL: does_blockhammer_approve for " << this->comp_name << ": row " << row_id << " @ clk " << clk << endl;
-      // debug_print("last_activates");
-      // printf("    Is blockhammer ok with row %d at clk %ld? ", row_id, clk);
       long ret_val = 0; // 0 means approves
       long blocked_until = 0;
       int cnt = 0;
       int most_recent_to_remove = -1;
       int latest_timestamp = -1;
-      // printf("\n >>>> Recent activates:\n");
-      // cout << " >>>> Traversing the history buffer for " << this->comp_name << endl;
       for ( auto entry : this->last_activates){
         long time_delta = clk - entry.timestamp;
-        // cout << " >>>>   Entry timestamp: " << entry.timestamp << "  Delta: " << time_delta << endl;
         if (time_delta > this->t_delay){
-          // cout << " >>>>    Time delta is larger than " << this->t_delay << endl;
           most_recent_to_remove++;
         }
         else {
-          // cout << " >>>>    Time delta is smaller than " << this->t_delay << endl;
           if (entry.row_id == row_id){
-            // cout << " >>>>    It is the same row: " << entry.row_id << endl;
-            // printf("    Row %d @ T-%ld", entry.row_id, time_delta);
             cnt++;
             latest_timestamp = (latest_timestamp < entry.timestamp) ? entry.timestamp : latest_timestamp; //+ this->t_delay + 1;
-            // cout << "    [RAHB] Row " << entry.row_id << " was accessed " << time_delta << " clocks ago." << endl;
           }
-          // else{
-          //   cout << " >>>>    It is a different row: " << entry.row_id << endl;
-          // }
         }
       }
-      // printf(" <<<<\n");
       if (latest_timestamp > 0)
         blocked_until = latest_timestamp + this->t_delay + 1;
-      // cout << "  Row is blocked until " << blocked_until << endl;
       if (cnt > 0){
         this->num_blocked_acts[this->phase_number]++;
         { //keep a record of the blocked rows.
@@ -1394,18 +1346,13 @@ namespace ramulator
         this->nonblocked_rows[row_id].first ++;
         #endif  
       }
-      // printf("  No! Row %d was accessed %ld clocks ago.", entry.row_id, time_delta);
       if(most_recent_to_remove >= 0){
         most_recent_to_remove = (most_recent_to_remove < this->last_activates.size())? most_recent_to_remove : this->last_activates.size();
-        // printf("@blockhammer: There are %d elements to remove.\n",most_recent_to_remove);
         this->last_activates.erase(
           this->last_activates.begin(),
           this->last_activates.begin()+most_recent_to_remove
         );
       }
-      // if (ret_val > clk) cout << " yes " << endl << endl;
-      // else cout << " no " << endl << endl;
-      // assert(ret_val);
       return ret_val;
     }
 
@@ -1415,7 +1362,6 @@ namespace ramulator
     // RowHammerDefense (this) updates the stats with the issued ACT.
     int get_row_to_refresh(int row_id, long clk, int adj_row_refresh_cnt, bool is_real_hammer, int coreid)
     {
-      //printf("\n\nFUNCTION CALL: get_row_to_refresh %d, %ld\n", row_id, clk);
       int adj_row_id = -1;
       long mrloc_1;
       long mrloc_2;
@@ -1423,14 +1369,11 @@ namespace ramulator
         case ROWHAMMER_DEFENSE::PARA:
           {
             if(adj_row_refresh_cnt != 0) break;
-            // cout << "Seed: " << para_seed << " ";
             int rand_number = rand_r(&para_seed);
-            // cout << "PARA's random number: " << rand_number << endl;
             if((rand_number% 1000) / 1000.0 < this->para_threshold)
             {
               adj_row_id = row_id + ((para_above)? 1 : -1);
               para_above = !para_above;
-              // cout << "PARA injects ACT " << adj_row_id << endl;
               // rows_to_refresh.push_back(adj_row_id);
               this->num_issued_refs[this->phase_number]++;
             }
@@ -1440,7 +1383,6 @@ namespace ramulator
           {
           // First, check if reset time is up: 
           if (clk >= graphene.reset_time){
-                // cout << "Graphene is reset @ clk cycle: " << clk << " next reset is @ clk cycle: ";
                 graphene_table_rows.resize(graphene.Nentry, -1);
                 graphene_table_cnts.resize(graphene.Nentry, 0);
                 graphene_spillover_cnt = 0;	
@@ -1451,9 +1393,9 @@ namespace ramulator
               // Is the row already in table?
           auto row_it = find(graphene_table_rows.begin(), graphene_table_rows.end(), row_id);
           if (row_it != graphene_table_rows.end())
-          {  // it is a hit
+          {  
+            // it is a hit
             int index = row_it - graphene_table_rows.begin();
-                //cout << "["<<clk<<"] Found row "<< row_id << " in Graphene's table with " << graphene_table_cnts[index] << " hammer count.";
             // increment the corresponding counter 
             if (adj_row_refresh_cnt == 0)
               graphene_table_cnts[index] = graphene_table_cnts[index] + 1;
@@ -1462,17 +1404,14 @@ namespace ramulator
             {
                   int adj_row_offset = ((adj_row_refresh_cnt / 2)+1) * pow(-1, adj_row_refresh_cnt % 2);
               adj_row_id = row_id + adj_row_offset; 
-              //cout << " -- Performing a preventive refresh on " << adj_row_id << endl;
                   this->num_issued_refs[this->phase_number]++;
             }
-            // else cout << endl;
           }
           else { // the activated row does not exist in the table. 
             // any entry with the same value as the spillover count? 
             auto cnt_it = find(graphene_table_cnts.begin(), graphene_table_cnts.end(), graphene_spillover_cnt);
             if (cnt_it != graphene_table_cnts.end())
             { // yes there is a row entry as much as the spillover count
-              //cout << "[" << clk << "] Row " << row_id << " was not there but it is now with a hammer count: " << graphene_spillover_cnt << endl;
               int index = cnt_it - graphene_table_cnts.begin();
               // replace the row address in the corresponding entry 
               graphene_table_rows[index] = row_id; 
@@ -1480,7 +1419,6 @@ namespace ramulator
               if (graphene_table_cnts[index] % graphene.T == 0)
               {
                     adj_row_id = row_id + 1;
-                //cout << "[" << clk << "] Performing preventive refresh on " << adj_row_id << endl;
                 this->num_issued_refs[this->phase_number]++;
               }
             }
@@ -1495,21 +1433,11 @@ namespace ramulator
         case ROWHAMMER_DEFENSE::BLOCKHAMMER:
           {
             if(adj_row_refresh_cnt != 0) break;
-            // cout << "  [BlockHammer] Inserting ACT into CBF"
-            //     << 1-active_bloom_filter << "." << endl;
             int passive_count = bf[1-active_bloom_filter].insert(row_id);
             bf[active_bloom_filter].insert(row_id);
-            // cout << "  [BlockHammer] Inserting ACT into CBF"
-            //     << active_bloom_filter << "." << endl;
             if(bf[active_bloom_filter].test(row_id))
             {
-              // cout << "  [BlockHammer] Active filter is " << active_bloom_filter
-              //     << " passive count is " << passive_count << "." << endl;
               hammer_cnts[active_bloom_filter][coreid] ++;
-              if (is_verbose){
-                // cout << "Core " << coreid << " activated a blacklisted row ("
-                //     << row_id << ")" << endl;
-              }
             }
 
             debug("Check bloom filter refresh");
@@ -1520,7 +1448,6 @@ namespace ramulator
             if ((passive_count > this->blockhammer_nbf / 2) ||
                 (clk - bf_start_time[active_bloom_filter] > this->nREFW/this->n_bf_window))
             { // switch filters
-              // cout << "  [BlockHammer] Switching the active filter." << endl;
               append_hammer_probs_file();
               bf[active_bloom_filter].clear();
               bf_start_time[active_bloom_filter] = clk;
@@ -1536,29 +1463,22 @@ namespace ramulator
 
         case ROWHAMMER_DEFENSE::TWICE:
           if(adj_row_refresh_cnt > 1) break;
-          // cout << "Twice is going to search its table and issue an activate!!" << endl;
           if(this->twice_table.find(row_id) != twice_table.end())
           {
-            // cout << "Twice found the entry!!, checking validity!! " << this->twice_table[row_id].valid << endl;
             if(this->twice_table[row_id].valid) {
-              // cout << "Entry is valid!!, checking threshold!! " << this->twice_table[row_id].act_cnt << endl;
               if(this->twice_table[row_id].act_cnt >= this->twice_threshold){
-                // cout << "Twice found a row to activate!!" << endl;
                 adj_row_id = row_id + ((adj_row_refresh_cnt == 0)? 1 : -1);
                 if (adj_row_refresh_cnt == 1)
                   this->twice_table.erase(this->twice_table.find(row_id));
-                // cout << "Twice successfully erased a row!!" << endl;
                 this->num_issued_refs[this->phase_number]++;
               }
               else{
-                // cout << "Twice, activates not exceeded the threshold!!" << endl;
                 this->twice_table[row_id].act_cnt += 1;
               }
             }
           }
           else
           {
-            // cout << "Twice is going to enter this row to its table!!" << endl;
             twice_table_entry entry;
             this->twice_table.insert(pair<int, twice_table_entry>(row_id, entry));
             this->twice_table[row_id].valid = true;
@@ -1572,13 +1492,11 @@ namespace ramulator
 
         case ROWHAMMER_DEFENSE::CBT:
           if(adj_row_refresh_cnt == last_set_counter_population) {
-            // cout << "Killed at the beginning :D" << endl; fflush(stdout);
             last_set_counter_population = -1;
             break;
           }
 
           if (adj_row_refresh_cnt < last_set_counter_population && adj_row_refresh_cnt != 0) {
-            // cout << "Recurrent refreshes" << endl; fflush(stdout);
             if (adj_row_refresh_cnt == cbt_counters_per_bank[last_iterator].upper_limit - 1) {
               cbt_counters_per_bank[last_iterator].counter_value = 0;
               last_set_counter_population = -1;
@@ -1586,38 +1504,29 @@ namespace ramulator
               break;
             }
             adj_row_id = (int)cbt_counters_per_bank[last_iterator].lower_limit + adj_row_refresh_cnt - 1;
-            // cout << "CBT: Doing refreshes!!!" << endl; fflush(stdout);
             break;
           }
 
           int iterator;
-          // cout << "CBT: row_id is: " << row_id << " and counter no is: " << cbt_counter_no << endl; fflush(stdout);
 
           for (iterator = 0; iterator < cbt_counter_no; ++iterator) {
             if (row_id < cbt_counters_per_bank[iterator].upper_limit && row_id > cbt_counters_per_bank[iterator].lower_limit) {
               last_iterator = iterator;
               last_set_counter_population = cbt_counters_per_bank[iterator].upper_limit - cbt_counters_per_bank[iterator].lower_limit + 1;
-              // cout << "CBT: row_id is: " << row_id << " and iterator no is: " << iterator << " and the values for the boundaries are: " << cbt_counters_per_bank[iterator].lower_limit << " to " << cbt_counters_per_bank[iterator].upper_limit << " -------------------" << endl; fflush(stdout);
               if (cbt_counters_per_bank[iterator].counter_value < cbt_thresholds[cbt_counters_per_bank[iterator].counter_level] || (cbt_counters_per_bank[iterator].counter_value <= cbt_thresholds[cbt_counters_per_bank[iterator].counter_level] && cbt_thresholds[cbt_counters_per_bank[iterator].counter_level] == 0) ) {
-                  // cout << "CBT: threshold level "  << cbt_counters_per_bank[iterator].counter_level << " is " << cbt_thresholds[cbt_counters_per_bank[iterator].counter_level] << endl; fflush(stdout);
-                  // cout << "CBT: Counter value is: " << cbt_counters_per_bank[iterator].counter_value << endl; fflush(stdout);
                   cbt_counters_per_bank[iterator].counter_value++;
                   adj_row_id = -1;
-                  // cout << "CBT: Counter incremented!!!" << endl; fflush(stdout);
                   break;
                 } else if (cbt_counters_per_bank[iterator].counter_level == cbt_total_levels - 1){
                   cbt_counters_per_bank[iterator].counter_value = 0;
                   if (adj_row_refresh_cnt == cbt_counters_per_bank[iterator].upper_limit - 1) {
-                    // cout << "reseting the last leaf which incurred the refresh!" << endl;
                     adj_row_id =  -1;
                     break;
                   }
                   adj_row_id = (int)cbt_counters_per_bank[iterator].lower_limit + adj_row_refresh_cnt - 1;
-                  // cout << "CBT: Doing refreshes!!!, and the bounds for this counter are: " << (int)cbt_counters_per_bank[iterator].lower_limit << " to " << (int)cbt_counters_per_bank[iterator].upper_limit << endl; fflush(stdout);
                   break;
                 } else if (cbt_counters_per_bank[iterator].counter_level < cbt_total_levels - 1) {
                   if (last_activated < cbt_counter_no - 1 && cbt_counters_per_bank[iterator].counter_level < cbt_total_levels - 1) {
-                    // cout << "CBT: Split in two" << endl; fflush(stdout);
                     last_activated++;
                     cbt_counters_per_bank[last_activated].upper_limit = cbt_counters_per_bank[iterator].upper_limit;
                     cbt_counters_per_bank[last_activated].counter_value = cbt_counters_per_bank[iterator].counter_value;
@@ -1629,7 +1538,6 @@ namespace ramulator
                     break;
                   } else if (last_activated == cbt_counter_no - 1) {
                     for (int i = 0; i < cbt_counter_no; ++i) {
-                      // cout << "CBT: K" << endl; fflush(stdout);
                       cbt_counters_per_bank[i].counter_level = cbt_total_levels - 1;
                       adj_row_id = -1;
                       break;
@@ -1645,9 +1553,6 @@ namespace ramulator
         case ROWHAMMER_DEFENSE::PROHIT:
 
               if(adj_row_refresh_cnt != 0) break;
-              // printf("Hello from get_row_to_refresh");
-              // print_deque(prh.hot_rows,"Hot rows");
-              // print_deque(prh.cold_rows,"Cold rows");
               pro_hit_update(&prh,row_id,row_id+1);
               pro_hit_update(&prh,row_id,row_id-1);
               if(prh.hot_rows.size() == prh.hot_entries ){
@@ -1682,7 +1587,6 @@ namespace ramulator
         this->num_issued_acts[this->phase_number]++;
         this->append_act(row_id, clk, false, is_real_hammer);
       }
-      // if (adj_row_id >= 0) cout << "[TRR: " << adj_row_id << "]" << endl;
       return adj_row_id;
     }
 
@@ -1699,7 +1603,6 @@ namespace ramulator
         case ROWHAMMER_DEFENSE::TWICE:
           for (std::map<int, twice_table_entry>::iterator iterator = this->twice_table.begin(); iterator != this->twice_table.end(); ++iterator) {
             if (iterator->second.life > (iterator->second.act_cnt / twice_pruning_interval_threshold)) {
-              // cout << "Twice pruning successful!!" << endl;
               this->twice_table.erase(iterator);
             } else
               iterator->second.life++;
@@ -1707,16 +1610,7 @@ namespace ramulator
 
         case ROWHAMMER_DEFENSE::CBT:
 
-        // cout << "Printing counter information at this time-stamp" << endl; fflush(stdout);
-
-        //for (int i = 0; i < this->cbt_counter_no; ++i) {
-          //cout << "This counter: " << i << " contains the value: " << this->cbt_counters_per_bank[i].counter_value << " , is at the level: " << this->cbt_counters_per_bank[i].counter_level << " and the boundaries are: " << this->cbt_counters_per_bank[i].upper_limit << " to " << this->cbt_counters_per_bank[i].lower_limit << endl; fflush(stdout);
-        //}
-
-        //cout << "End of printing counter information at this time-stamp" << endl;
-
         if (partial_refresh_counter == 8238) { 
-          //cout << "CBT: Regenerate Tree!!" << endl; fflush(stdout);
             for (int iterator = 0; iterator < this->cbt_counter_no; ++iterator) {
               partial_refresh_counter = 0;
               this->cbt_counters_per_bank[iterator].counter_value = 0;
@@ -1794,7 +1688,6 @@ namespace ramulator
     void append_act(int row_id, long clk, bool is_ref, bool is_real_hammer)
     {
       // Blockhammer watches you, even asleep
-      // debug_print("last_activates");
       switch (this->method){
         case ROWHAMMER_DEFENSE::BLOCKHAMMER :
         // case ROWHAMMER_DEFENSE::BLOOM_FILTERED_BLOCKHAMMER:
@@ -1807,7 +1700,6 @@ namespace ramulator
         default:
           break;
       }
-      // debug_print("last_activates");
   #ifdef COLLECT_ROWACTCNT
       update_rhli_stats(row_id, clk);
   #endif
@@ -1939,150 +1831,102 @@ namespace ramulator
         // printf("[%ld] There is no record of any activates.\n", clk);
       }
   #endif
-
       // Second, append the new ACT to the timestamp queue of a relevant queue.
       // this->act_logs[row_id].push_back(clk);
-
-
     }
-
-    void print_deque(deque<long> dq, char* name)
-    {
-        int counter;
-        counter = 0;
-        for(std::deque<long>::iterator it = dq.begin(); it != dq.end(); ++it) {
-
-
-            printf("%s element %d: %ld  \n",name,counter,*it);
-
-        }
-
-
-    }
-
 
     long mrloc_update(struct mrloc *mrloc , long row, long neighbor){
-
-        int index_hit = -1;
-        int counter = 0;
+      int index_hit = -1;
+      int counter = 0;
       for(std::deque<long>::iterator it = mrloc->mrloc_queue.begin(); it != mrloc->mrloc_queue.end(); ++it) {
-
-            if(*it == neighbor){
-
-                index_hit = counter;
-                break;
-            }
-            counter++;
-          }
+        if(*it == neighbor){
+          index_hit = counter;
+          break;
+        }
+        counter++;
+      }
 
       if(index_hit == -1){
-
-          mrloc->mrloc_queue.push_front(neighbor);
-
-          if(mrloc->mrloc_queue.size() > mrloc->size){
-
-              mrloc->mrloc_queue.pop_back();
-
-          }
-
-          double prob;
-          prob = 0.0005;
-
-          if( (rand() % 1000/1000.0 )< prob ) return neighbor;
-          else return -1;
+        mrloc->mrloc_queue.push_front(neighbor);
+        if(mrloc->mrloc_queue.size() > mrloc->size){
+          mrloc->mrloc_queue.pop_back();
+        }
+        double prob;
+        prob = 0.0005;
+        if( (rand() % 1000/1000.0 )< prob ) return neighbor;
+        else return -1;
       }
 
       else {
-
-          mrloc->mrloc_queue.push_front(neighbor);
-          if(mrloc->mrloc_queue.size() > mrloc->size){
-
-              mrloc->mrloc_queue.pop_back();
-
-          }
-          double prob;
-          prob = 0.0005+0.0005*(mrloc->size-index_hit+1);
-          if( (rand() % 1000/ 1000.0) < prob ) return neighbor;
-          else return -1;
+        mrloc->mrloc_queue.push_front(neighbor);
+        if(mrloc->mrloc_queue.size() > mrloc->size){
+          mrloc->mrloc_queue.pop_back();
+        }
+        double prob;
+        prob = 0.0005+0.0005*(mrloc->size-index_hit+1);
+        if( (rand() % 1000/ 1000.0) < prob ) return neighbor;
+        else return -1;
       }
     }
 
-
-
     void pro_hit_update(struct prohit *prh , long row, long neighbor){
-
-        int index_hit = -1;
-        int counter = 0;
-        for(std::deque<long>::iterator it = prh->hot_rows.begin(); it != prh->hot_rows.end(); ++it) {
-
-            if(*it == neighbor){
-
-                index_hit = counter;
-
-            }
-            counter++;
+      int index_hit = -1;
+      int counter = 0;
+      for(std::deque<long>::iterator it = prh->hot_rows.begin(); it != prh->hot_rows.end(); ++it) {
+        if(*it == neighbor){
+          index_hit = counter;
         }
-
-
-        for(std::deque<long>::iterator it = prh->cold_rows.begin(); it != prh->cold_rows.end(); ++it) {
-
-            if(*it == neighbor){
-
-                index_hit = counter;
-
-            }
-            counter++;
-
-        }
-
-        // long temp;
-        if(index_hit == -1){
-          // printf("Insert neighbor row in prh table: %ld \n", neighbor);
-          if( (rand() % 1000/ 1000.0 ) < prh->pr_insert_thres){
-
-              prh->cold_rows.push_front(neighbor);
-              if(prh->cold_rows.size() > prh->cold_entries){
-
-                  int temp;
-                  temp = (rand() % prh->cold_rows.size());
-                  prh->cold_rows.erase(prh->cold_rows.begin()+temp);
-
-
-              }
-          }
-        }
-        else{
-
-            // printf("Promote neighbor in prh table: %ld", neighbor);
-            long temp;
-            if(index_hit <= prh->hot_entries ){
-                temp  = prh->hot_rows[index_hit-1];
-                if(index_hit != 0 && prh->hot_rows.size()>1 ){
-                    prh->hot_rows[index_hit-1] = prh->hot_rows[index_hit];
-                    prh->hot_rows[index_hit] = temp;
-                }
-            }
-            else{
-                long temp2;
-                temp = prh->cold_rows[index_hit-prh->hot_entries];
-                prh->cold_rows.erase(prh->cold_rows.begin()+index_hit-prh->hot_entries);
-                if(prh->hot_rows.size() == prh->hot_entries ){
-                    temp2 = prh->hot_rows.back();
-                    prh->hot_rows.pop_back();
-                    prh->cold_rows.push_front(temp2);
-                    prh->hot_rows.push_back(temp);
-                }
-                else{
-                  prh->hot_rows.push_back(temp);
-                }
-
-            }
-
-
-
-
-          }
+        counter++;
       }
+
+      for(std::deque<long>::iterator it = prh->cold_rows.begin(); it != prh->cold_rows.end(); ++it) {
+        if(*it == neighbor){
+          index_hit = counter;
+        }
+        counter++;
+      }
+
+      // long temp;
+      if(index_hit == -1){
+        if( (rand() % 1000/ 1000.0 ) < prh->pr_insert_thres){
+          prh->cold_rows.push_front(neighbor);
+          if(prh->cold_rows.size() > prh->cold_entries){
+            int temp;
+            temp = (rand() % prh->cold_rows.size());
+            prh->cold_rows.erase(prh->cold_rows.begin()+temp);
+          }
+        }
+      }
+      else{
+        long temp;
+        if (index_hit <= prh->hot_entries)
+        {
+          temp = prh->hot_rows[index_hit - 1];
+          if (index_hit != 0 && prh->hot_rows.size() > 1)
+          {
+            prh->hot_rows[index_hit - 1] = prh->hot_rows[index_hit];
+            prh->hot_rows[index_hit] = temp;
+          }
+        }
+        else
+        {
+          long temp2;
+          temp = prh->cold_rows[index_hit - prh->hot_entries];
+          prh->cold_rows.erase(prh->cold_rows.begin() + index_hit - prh->hot_entries);
+          if (prh->hot_rows.size() == prh->hot_entries)
+          {
+            temp2 = prh->hot_rows.back();
+            prh->hot_rows.pop_back();
+            prh->cold_rows.push_front(temp2);
+            prh->hot_rows.push_back(temp);
+          }
+          else
+          {
+            prh->hot_rows.push_back(temp);
+          }
+        }
+      }
+    }
   };
 }
 
