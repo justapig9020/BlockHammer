@@ -9,7 +9,7 @@
 #include <cassert>
 #include <typeinfo>
 
-#define DEBUG
+//#define DEBUG
 #include "debug.h"
 
 namespace ramulator

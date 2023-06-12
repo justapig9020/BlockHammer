@@ -1219,7 +1219,7 @@ namespace ramulator
 
                     if (req.callback)
                         req.callback(req);
-                    cout << "[PENDING] Pending dequeue" << endl;
+                    debug("[PENDING] Pending dequeue");
                     pending.pop_front();
                 }
             }
