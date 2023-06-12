@@ -9,6 +9,9 @@
 #include <cassert>
 #include <typeinfo>
 
+//#define DEBUG
+#include "debug.h"
+
 namespace ramulator
 {
 
@@ -207,7 +210,10 @@ public:
 
     int get_int(const std::string& param_name) const {
         // std::cerr << "Getting integer argument " << param_name << std::endl;
-        return get<int>(param_name, [](const std::string& s){ return std::stoi(s); }); // Hasan: the lambda function trick helps ignoring the optional argument of stoi
+        int val = get<int>(param_name, [](const std::string& s){ return std::stoi(s); }); // Hasan: the lambda function trick helps ignoring the optional argument of stoi
+        const char *sval = get<std::string>(param_name, [](const std::string& s) {return s;}).c_str();
+        debug("%s: %s, %d", param_name.c_str(), sval, val);
+        return val;
     }
     
     long get_long(const std::string& param_name) const {

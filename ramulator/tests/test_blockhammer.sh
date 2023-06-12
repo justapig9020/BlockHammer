@@ -24,7 +24,8 @@ cmd="$cmd -p collect_energy=true -p drampower_specs_file=../DRAMPower/memspecs/M
 
 # Running single-core workloads
 sccmd="$cmd -p l3_size=1048576" # 1MB
-for tracefile in `ls $TRACEDIR`; 
+# for tracefile in `ls $TRACEDIR`; 
+for tracefile in "hammerall.4clxor";
 do
   echo ""
   echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
@@ -56,12 +57,12 @@ do
 
   mechcmd="$sccmd -p outdir=$MECHOUTDIR";
   mechcmd="$mechcmd -c rowhammer_defense=blockhammer";
-  mechcmd="$mechcmd -c blockhammer_nth=1024";
+  mechcmd="$mechcmd -c blockhammer_nth=8192";
   mechcmd="$mechcmd -c blockhammer_nbf=1048576";
   mechcmd="$mechcmd -c bf_size=16384";
   mechcmd="$mechcmd -c blockhammer_tth=0.9";
   mechcmd="$mechcmd -t $TRACEDIR/$tracefile";
-  mechcmd="$mechcmd > $MECHOUTDIR/std.out"
+  mechcmd="$mechcmd | tee $MECHOUTDIR/std.out"
   echo "Running $mechcmd";
   eval $mechcmd;
   echo "Updating the results file";

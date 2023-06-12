@@ -2,6 +2,9 @@
 #include "StridePrefetcher.h"
 #include <cassert>
 
+// #define DEBUG
+#include "debug.h"
+
 using namespace std;
 using namespace ramulator;
 
@@ -110,6 +113,7 @@ void Processor::tick() {
 
 void Processor::receive(Request& req) {
   if (!no_shared_cache) {
+    debug("llc call back");
     llc.callback(req);
   } else if (!cores[0]->no_core_caches) {
     // Assume all cores have caches or don't have caches
@@ -310,7 +314,10 @@ void Core::tick()
         Request req(req_addr, req_type, callback, id);
         req.payload = payload;
         // cout << clk << " ---- " << "CPU Ticks, checkpoint 4, request type: " << (int)req_type << endl;
-        if (!send(req)) return;
+        if (!send(req)) {
+          debug("Send request failed");
+          return;
+        }
 
         window.insert(false, req_addr);
         cpu_inst++;
