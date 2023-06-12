@@ -1458,7 +1458,7 @@ namespace ramulator
             if (req->type == Request::Type::READ || req->type == Request::Type::PREFETCH)
             {
                 req->depart = clk + channel->spec->read_latency;
-                cout << "[PENDING] pending enqueue" << endl;
+                debug("[PENDING] pending enqueue");
                 pending.push_back(*req);
             }
 
