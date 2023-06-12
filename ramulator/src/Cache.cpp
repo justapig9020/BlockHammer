@@ -207,16 +207,7 @@ namespace ramulator
       // All requests come to this stage will be READ, so they
       // should be recorded in MSHR entries.
       int mshr_limit = mshr_entry_num;
-      // @Giray: check if throttling MSHR entry count is necessary.
-      if (is_last_level && req.type == Request::Type::HAMMER)
-      {
-        // cerr << "11111" << endl;
-        mshr_limit = (int)floor(mshr_entry_num * throttling_coeffs_ptr->at(req.coreid));
-        // if (mshr_limit < mshr_entry_num){
-        //   cout << "MSHR entries are limited for core" << req.coreid << " to " << mshr_limit << endl;
-        //   assert(false);
-        // }
-      }
+
       debug("MSHR entries: %d", mshr_entries.size());
       debug("MSHR limit: %d", mshr_limit);
       if (mshr_entries.size() >= mshr_limit)
