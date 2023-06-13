@@ -102,9 +102,8 @@ namespace ramulator
         .precision(0);
   }
 
-  bool Cache::send(Request req)
+  void Cache::update_cache_access_counters(Request &req)
   {
-
     cache_total_access++;
     if (req.type == Request::Type::WRITE)
     {
@@ -123,147 +122,160 @@ namespace ramulator
       assert(req.type == Request::Type::PREFETCH);
       cache_prefetch_access++;
     }
+  }
 
+  bool Cache::do_cache_hit(std::list<Line> &lines, std::list<Line>::iterator &line, Request &req)
+  {
+    if (req.type == Request::Type::PREFETCH)
+    {
+      cache_prefetch_hit++;
+      return true;
+    }
+
+    lines.push_back(Line(req.addr, get_tag(req.addr), false,
+                         line->dirty || (req.type == Request::Type::WRITE)));
+    lines.erase(line);
+    cachesys->hit_list.push_back(
+        make_pair(cachesys->clk + latency[int(level)], req));
+
+    if (prefetcher)
+      prefetcher->hit(req.addr, cachesys->clk);
+
+    return true;
+  }
+
+  bool Cache::mshr_full()
+  {
+    if (mshr_entries.size() >= mshr_entry_num)
+    {
+      debug("MSHR unavailable");
+      // When no MSHR entries available, the miss request
+      // is stalling.
+      cache_mshr_unavailable++;
+      return true;
+    }
+    return false;
+  }
+
+  void Cache::send_to_next_level(Request &req)
+  {
+    if (is_last_level)
+    {
+      cachesys->wait_list.push_back(
+          make_pair(cachesys->clk + latency[int(level)], req));
+    }
+    else
+    {
+      lower_cache->send(req);
+    }
+  }
+
+  void Cache::do_prefetch(Line &line, Request &req)
+  {
+    if (req.type == Request::Type::READ)
+    {
+      prefetcher->miss(req.addr, cachesys->clk);
+    }
+    else
+    {
+      assert(req.type == Request::Type::PREFETCH);
+      line.is_prefetch = true;
+    }
+  }
+
+  bool Cache::do_cache_miss(std::list<Line> &lines, std::list<Line>::iterator &line, Request &req)
+  {
+    // TODO: why we update the counter second time?
+    //       why it happened only if it is a miss?
+    update_cache_access_counters(req);
+
+    // The dirty bit will be set if this is a write request and @L1
+    bool is_dirty = (req.type == Request::Type::WRITE);
+
+    // Modify the type of the request to lower level
+    if (req.type == Request::Type::WRITE)
+    {
+      req.type = Request::Type::READ;
+    }
+
+    // Look it up in MSHR entries
+    assert((req.type == Request::Type::READ) || (req.type == Request::Type::PREFETCH) || (req.type == Request::Type::HAMMER));
+    auto mshr = hit_mshr(req.addr);
+    if (mshr != mshr_entries.end())
+    {
+      debug("hit mshr");
+      cache_mshr_hit++;
+      return mshr_forwarding(*mshr->second, req, is_dirty);
+    }
+
+    // All requests come to this stage will be READ, so they
+    // should be recorded in MSHR entries.
+    if (mshr_full())
+    {
+      return false;
+    }
+
+    // Check whether there is a line available
+    if (all_sets_locked(lines))
+    {
+      cache_set_unavailable++;
+      return false;
+    }
+
+    auto newline = allocate_line(lines, req.addr, req.type == Request::Type::HAMMER);
+    if (newline == lines.end())
+      return false;
+
+    newline->dirty = is_dirty;
+
+    // Add to MSHR entries
+    debug("MSHR enqueue");
+    mshr_entries.push_back(make_pair(req.addr, newline));
+
+    // Send the request to next level;
+    send_to_next_level(req);
+
+    if (prefetcher)
+    {
+      do_prefetch(*newline, req);
+    }
+    return true;
+  }
+
+  bool Cache::mshr_forwarding(Line &mshr_line, Request &req, bool is_dirty)
+  {
+    mshr_line.dirty = is_dirty || mshr_line.dirty;
+    // FIXME: Shall we train the prefetcher on MSHR hit???
+    // if(prefetcher)
+    //    prefetcher->miss(req.addr, cachesys->clk);
+
+    // upgrade the previous prefetch request to demand request so the
+    // processor will be informed on completion of the request
+    if (prefetcher && (req.type == Request::Type::READ) && mshr_line.is_prefetch)
+    {
+      bool is_upgraded = cachesys->upgrade_prefetch_req(align(req.addr));
+      if (!is_upgraded)
+        printf("Address of the request failed to upgrade: %ld\n", align(req.addr));
+      assert(is_upgraded && "ERROR: Failed to upgrade a PREFETCH request to READ!");
+      mshr_line.is_prefetch = false;
+    }
+
+    return true;
+  }
+
+  bool Cache::send(Request req)
+  {
+    update_cache_access_counters(req);
     // If there isn't a set, create it.
     auto &lines = get_lines(req.addr);
     std::list<Line>::iterator line;
 
+    // Check whether it's a cache hit, a hammer request will always be a miss
     if (is_hit(lines, req.addr, &line) && (req.type != Request::Type::HAMMER))
     {
-      if (req.type == Request::Type::PREFETCH)
-      {
-        cache_prefetch_hit++;
-        return true;
-        ;
-      }
-
-      lines.push_back(Line(req.addr, get_tag(req.addr), false,
-                           line->dirty || (req.type == Request::Type::WRITE)));
-      lines.erase(line);
-      cachesys->hit_list.push_back(
-          make_pair(cachesys->clk + latency[int(level)], req));
-
-      if (prefetcher)
-        prefetcher->hit(req.addr, cachesys->clk);
-
-      return true;
+      return do_cache_hit(lines, line, req);
     }
-    else
-    {
-      cache_total_miss++;
-      if (req.type == Request::Type::WRITE)
-      {
-        cache_write_miss++;
-      }
-      else if (req.type == Request::Type::READ)
-      {
-        cache_read_miss++;
-      }
-      else if (req.type == Request::Type::HAMMER)
-      {
-        cache_hammer_miss++;
-      }
-      else
-      {
-        assert(req.type == Request::Type::PREFETCH);
-        cache_prefetch_miss++;
-      }
-
-      // The dirty bit will be set if this is a write request and @L1
-      bool dirty = (req.type == Request::Type::WRITE);
-
-      // Modify the type of the request to lower level
-      if (req.type == Request::Type::WRITE)
-      {
-        req.type = Request::Type::READ;
-      }
-
-      // Look it up in MSHR entries
-      assert((req.type == Request::Type::READ) || (req.type == Request::Type::PREFETCH) || (req.type == Request::Type::HAMMER));
-      auto mshr = hit_mshr(req.addr);
-      if (mshr != mshr_entries.end())
-      {
-        debug("hit mshr");
-        cache_mshr_hit++;
-        mshr->second->dirty = dirty || mshr->second->dirty;
-        // FIXME: Shall we train the prefetcher on MSHR hit???
-        // if(prefetcher)
-        //    prefetcher->miss(req.addr, cachesys->clk);
-
-        // upgrade the previous prefetch request to demand request so the
-        // processor will be informed on completion of the request
-        if (prefetcher && (req.type == Request::Type::READ) && mshr->second->is_prefetch)
-        {
-          bool is_upgraded = cachesys->upgrade_prefetch_req(align(req.addr));
-          if (!is_upgraded)
-            printf("Address of the request failed to upgrade: %ld\n", align(req.addr));
-          assert(is_upgraded && "ERROR: Failed to upgrade a PREFETCH request to READ!");
-          mshr->second->is_prefetch = false;
-        }
-
-        return true;
-      }
-
-      // All requests come to this stage will be READ, so they
-      // should be recorded in MSHR entries.
-      int mshr_limit = mshr_entry_num;
-
-      debug("MSHR entries: %d", mshr_entries.size());
-      debug("MSHR limit: %d", mshr_limit);
-      if (mshr_entries.size() >= mshr_limit)
-      {
-        debug("MSHR unavailable");
-        // When no MSHR entries available, the miss request
-        // is stalling.
-        cache_mshr_unavailable++;
-        return false;
-      }
-
-      // Check whether there is a line available
-      if (all_sets_locked(lines))
-      {
-        cache_set_unavailable++;
-        return false;
-      }
-
-      auto newline = allocate_line(lines, req.addr, req.type == Request::Type::HAMMER);
-      if (newline == lines.end())
-      {
-        return false;
-      }
-
-      newline->dirty = dirty;
-
-      // Add to MSHR entries
-      debug("MSHR enqueue");
-      mshr_entries.push_back(make_pair(req.addr, newline));
-
-      // Send the request to next level;
-      if (!is_last_level)
-      {
-        lower_cache->send(req);
-      }
-      else
-      {
-        cachesys->wait_list.push_back(
-            make_pair(cachesys->clk + latency[int(level)], req));
-      }
-
-      if (prefetcher)
-      {
-        if (req.type == Request::Type::READ)
-        {
-          prefetcher->miss(req.addr, cachesys->clk);
-        }
-        else
-        {
-          assert(req.type == Request::Type::PREFETCH);
-          newline->is_prefetch = true;
-        }
-      }
-
-      return true;
-    }
+    return do_cache_miss(lines, line, req);
   }
 
   void Cache::evictline(long addr, bool dirty)
