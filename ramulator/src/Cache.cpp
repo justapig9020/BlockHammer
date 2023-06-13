@@ -157,8 +157,10 @@ namespace ramulator
     return false;
   }
 
-  void Cache::send_to_next_level(Request &req)
+  void Cache::send_to_next_level(std::list<Line>::iterator line, Request &req)
   {
+    debug("MSHR enqueue");
+    mshr_entries.push_back(make_pair(req.addr, line));
     if (is_last_level)
     {
       cachesys->wait_list.push_back(
@@ -229,11 +231,9 @@ namespace ramulator
     newline->dirty = is_dirty;
 
     // Add to MSHR entries
-    debug("MSHR enqueue");
-    mshr_entries.push_back(make_pair(req.addr, newline));
 
     // Send the request to next level;
-    send_to_next_level(req);
+    send_to_next_level(newline, req);
 
     if (prefetcher)
     {
@@ -505,7 +505,7 @@ namespace ramulator
   {
     ++clk;
 
-    // Sends ready waiting request to memory
+    // Sends ready waiting request to memory. it->first is the latency of the request
     auto it = wait_list.begin();
     while (it != wait_list.end() && clk >= it->first)
     {

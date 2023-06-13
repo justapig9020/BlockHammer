@@ -106,7 +106,7 @@ namespace ramulator
 
     bool mshr_full();
 
-    void send_to_next_level(Request &req);
+    void send_to_next_level(std::list<Line>::iterator line, Request &req);
 
     void do_prefetch(Line &line, Request &req);
 
